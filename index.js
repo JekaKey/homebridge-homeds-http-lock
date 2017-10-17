@@ -11,23 +11,29 @@ module.exports = function(homebridge) {
 function HomeDSAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
-  this.poolingInterval = config["poolingInterval"];;
+  this.poolingInterval = parseInt(config["poolingInterval"]);
+
+  if (this.poolingInterval < 0) {
+  	this.poolingInterval = 1000;
+  }
+
   this.stateUrl = config["stateUrl"];
   this.lockUrl = config["lockUrl"];
   this.unlockUrl = config["unlockUrl"];
-  this.onlyUnlock = true;
+
   this.isClosed = undefined;
 
   this.service = new Service.LockMechanism(this.name,this.name);
 
   this.service
     .getCharacteristic(Characteristic.LockCurrentState)
-    .on('get', this.getState.bind(this));
+    .on('get', this.getCurState.bind(this))
+    .on('set', this.setCurState.bind(this));
 
   this.service
     .getCharacteristic(Characteristic.LockTargetState)
-    .on('get', this.getState.bind(this))
-    .on('set', this.setState.bind(this));
+    .on('get', this.getTarState.bind(this))
+    .on('set', this.setTarState.bind(this));
 
     this.init();
 
@@ -36,8 +42,7 @@ function HomeDSAccessory(log, config) {
 HomeDSAccessory.prototype = {
   init: function() {
 
-    this.log('init');
-
+    // this.log('init');
     this.infoService = new Service.AccessoryInformation();
     this.infoService
       .setCharacteristic(Characteristic.Manufacturer, "HomeDS")
@@ -47,6 +52,45 @@ HomeDSAccessory.prototype = {
 
     setTimeout(this.monitorState.bind(this), this.poolingInterval);
 
+  },
+  getCurState: function(callback) {
+  	this.log('getCurState');
+  	callback(null, this.isClosed);
+
+  },
+  setCurState: function(state, callback) {
+  	this.isClosed = state;
+  	callback(null, this.isClosed);
+  },
+  getTarState: function(callback) {
+  	this.log('getTarState');
+  	callback(null, this.isClosed);
+  },
+  setTarState: function(state, callback) {
+  	this.log('Set state - ' + state);
+  	this.log('setTarState');
+
+  	// this.service.setCharacteristic(Characteristic.LockCurrentState, state);
+
+  	var url = (state == true) ? this.lockUrl : this.unlockUrl;
+
+  	request.get({
+          url: url
+        }, function(err, response, body) {
+
+          if (!err && response.statusCode == 200) {
+            this.isClosed = state;
+            this.service.setCharacteristic(Characteristic.LockCurrentState, state);
+
+            callback(null);
+          }
+          else {
+            this.log('Http server return error');
+            this.service.setCharacteristic(Characteristic.LockCurrentState, state);
+            callback(null);
+          }
+        }.bind(this));
+  	
   },
   monitorState: function() {
 
@@ -61,7 +105,7 @@ HomeDSAccessory.prototype = {
 
           var curState = (body == 'lock') ? true : false;
 
-          // this.log("Current status: %s", curState);
+          this.log("Current status: %s", curState);
           // this.log("Current state: %s", this.isClosed);
 
           if (curState != this.isClosed) {
@@ -86,141 +130,6 @@ HomeDSAccessory.prototype = {
 
       setTimeout(this.monitorState.bind(this), this.poolingInterval);
 
-  },
-  getState: function(callback) {
-
-      request.get({
-        url: this.stateUrl
-      }, function(err, response, body) {
-
-        if (!err && response.statusCode == 200) {
-          // var json = JSON.parse(body);
-          // var state = json.state; // "lock" or "unlock"
-          // var state = body;
-
-          this.log("Lock state is %s", body);
-          var curState = (body == 'lock') ? true : false;
-
-          this.isClosed = curState;
-
-          callback(null, curState);
-        }
-        else {
-          this.log('Server error');
-          callback(err);
-        }
-      }.bind(this));
-
-    },
-  setState: function(state, callback) {
-
-    this.log('Set state - '+state);
-
-    if (state === 0) { //Unlock
-      this.log('unlock');
-
-        request.get({
-          url: this.unlockUrl
-        }, function(err, response, body) {
-
-          if (!err && response.statusCode == 200) {
-            this.isClosed = false;
-            this.service.setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-
-            callback(null);
-          }
-          else {
-            this.log('Server error');
-            this.isClosed = undefined;
-            callback(null);
-          }
-        }.bind(this));
-
-    // } else if (state === 1) { //Lock
-    //   this.log('set lock');
-    //   // this.isClosed = false;
-    //   callback(null);
-    } else {
-      this.log('set undef');
-
-      this.service
-        .setCharacteristic(Characteristic.LockCurrentState, this.isClosed);
-
-
-      callback(null);
-    }
-
-    // if (state == 0) { //Unlock
-    //   this.log('Unlock state');
-    //
-    //   request.get({
-    //     url: "http://localhost:3000/unlock"
-    //   }, function(err, response, body) {
-    //
-    //     if (!err && response.statusCode == 200) {
-    //       this.isClosed = false;
-    //       this.service.setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-    //
-    //       callback(null);
-    //     }
-    //     else {
-    //       this.log('Server error');
-    //       this.isClosed = undefined;
-    //       callback(err);
-    //     }
-    //   }.bind(this));
-    //
-    // } else if (state == 1) { //lock
-    //   this.log('Lock');
-    //   this.isClosed = false;
-    //   // this.service.setCharacteristic(Characteristic.LockCurrentState, Characteristic.LockCurrentState.UNSECURED);
-    //   this.service
-    //    .setCharacteristic(Characteristic.LockCurrentState, this.isClosed);
-    //
-    //   this.service
-    //    .setCharacteristic(Characteristic.LockTargetState, this.isClosed);
-    //   callback(null);
-    // }
-
-    // this.isClosed = undefined;
-    // callback(null);
-
-    // var lockitronState = (state == Characteristic.LockTargetState.SECURED) ? "lock" : "unlock";
-    //
-    // this.log("Set state to %s", lockitronState);
-    //
-    // var currentState = (state == Characteristic.LockTargetState.SECURED) ?
-    //   Characteristic.LockCurrentState.SECURED : Characteristic.LockCurrentState.UNSECURED;
-    //
-    // this.service
-    //   .setCharacteristic(Characteristic.LockCurrentState, currentState);
-    //
-    // callback(null);
-    //
-    // this.log("State change complete.");
-
-    // request.put({
-    //   url: "https://api.lockitron.com/v2/locks/"+this.lockID,
-    //   qs: { access_token: this.accessToken, state: lockitronState }
-    // }, function(err, response, body) {
-
-    //   if (!err && response.statusCode == 200) {
-    //     this.log("State change complete.");
-
-    //     // we succeeded, so update the "current" state as well
-    //     var currentState = (state == Characteristic.LockTargetState.SECURED) ?
-    //       Characteristic.LockCurrentState.SECURED : Characteristic.LockCurrentState.UNSECURED;
-
-    //     this.service
-    //       .setCharacteristic(Characteristic.LockCurrentState, currentState);
-
-    //     callback(null); // success
-    //   }
-    //   else {
-    //     this.log("Error '%s' setting lock state. Response: %s", err, body);
-    //     callback(err || new Error("Error setting lock state."));
-    //   }
-    // }.bind(this));
   }
 
 }
