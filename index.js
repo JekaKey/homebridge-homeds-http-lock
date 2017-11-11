@@ -20,8 +20,11 @@ function HomeDSAccessory(log, config) {
   this.stateUrl = config["stateUrl"];
   this.lockUrl = config["lockUrl"];
   this.unlockUrl = config["unlockUrl"];
+  this.method = config["method"];
 
   this.isClosed = undefined;
+
+  if (this.method == undefined) {this.method = 'get'}
 
   this.service = new Service.LockMechanism(this.name,this.name);
 
@@ -74,7 +77,7 @@ HomeDSAccessory.prototype = {
 
   	var url = (state == true) ? this.lockUrl : this.unlockUrl;
 
-  	request.get({
+  	request[this.method]({
           url: url
         }, function(err, response, body) {
 
@@ -94,7 +97,7 @@ HomeDSAccessory.prototype = {
   },
   monitorState: function() {
 
-      request.get({
+      request[this.method]({
         url: this.stateUrl
       }, function(err, response, body) {
 
@@ -103,7 +106,9 @@ HomeDSAccessory.prototype = {
           // var state = json.state; // "lock" or "unlock"
           // var state = body;
 
-          var curState = (body == 'lock') ? true : false;
+          body = JSON.parse(body);
+
+          var curState = (body->result.toLowerCase() == 'lock') ? true : false;
 
           this.log("Current status: %s", curState);
           // this.log("Current state: %s", this.isClosed);
