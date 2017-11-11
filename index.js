@@ -110,7 +110,7 @@ HomeDSAccessory.prototype = {
 
           if (curState != this.isClosed) {
 
-            this.log("Lock state is change to %s - %s", curState, this.isClosed);
+            this.log("Lock state is change to %s from  %s", curState, this.isClosed);
 
             this.isClosed = curState;
 
