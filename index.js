@@ -108,7 +108,7 @@ HomeDSAccessory.prototype = {
 
           body = JSON.parse(body);
 
-          var curState = (body->result.toLowerCase() == 'lock') ? true : false;
+          var curState = (body.result.toLowerCase() == 'lock') ? true : false;
 
           this.log("Current status: %s", curState);
           // this.log("Current state: %s", this.isClosed);
