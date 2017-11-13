@@ -21,6 +21,7 @@ function HomeDSAccessory(log, config) {
   this.lockUrl = config["lockUrl"];
   this.unlockUrl = config["unlockUrl"];
   this.method = config["method"];
+  this.debug = config["debug"];
 
   this.isClosed = undefined;
 
@@ -30,12 +31,12 @@ function HomeDSAccessory(log, config) {
 
   this.service
     .getCharacteristic(Characteristic.LockCurrentState)
-    .on('get', this.getCurState.bind(this))
-    .on('set', this.setCurState.bind(this));
+    .on('get', this.getCurState.bind(this));
+    // .on('set', this.setCurState.bind(this));
 
   this.service
     .getCharacteristic(Characteristic.LockTargetState)
-    .on('get', this.getTarState.bind(this))
+    .on('get', this.getCurState.bind(this))
     .on('set', this.setTarState.bind(this));
 
     this.init();
@@ -45,7 +46,8 @@ function HomeDSAccessory(log, config) {
 HomeDSAccessory.prototype = {
   init: function() {
 
-    // this.log('init');
+    this.log('Init HomeDSHttpLock');
+
     this.infoService = new Service.AccessoryInformation();
     this.infoService
       .setCharacteristic(Characteristic.Manufacturer, "HomeDS")
@@ -67,7 +69,11 @@ HomeDSAccessory.prototype = {
   },
   getTarState: function(callback) {
   	this.log('getTarState');
-  	callback(null, this.isClosed);
+
+    setTimeout(function() {
+      callback(null, this.isClosed);
+    },2000);
+  	
   },
   setTarState: function(state, callback) {
   	this.log('Set state - ' + state);
@@ -77,7 +83,11 @@ HomeDSAccessory.prototype = {
 
   	var url = (state == true) ? this.lockUrl : this.unlockUrl;
 
-  	request[this.method]({
+    if (this.isClosed == state) {
+      console.log('State equel');
+      callback(null,state);
+    } else {
+          request[this.method]({
           url: url
         }, function(err, response, body) {
 
@@ -85,14 +95,16 @@ HomeDSAccessory.prototype = {
             this.isClosed = state;
             this.service.setCharacteristic(Characteristic.LockCurrentState, state);
 
-            callback(null);
+            callback(null,state);
           }
           else {
             this.log('Http server return error');
             this.service.setCharacteristic(Characteristic.LockCurrentState, state);
-            callback(null);
+            callback(null,state);
           }
         }.bind(this));
+    }
+
   	
   },
   monitorState: function() {
